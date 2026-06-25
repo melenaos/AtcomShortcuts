@@ -1,0 +1,84 @@
+[
+  {
+    "id": "directory",
+    "label": "Directory — open project folder (-d)",
+    "snippet": "directory.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "directory", "alias": "d", "type": "switch" }
+    ]
+  },
+  {
+    "id": "explorer",
+    "label": "Explorer — open project folder in explorer (-exp)",
+    "snippet": "explorer.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "explorer", "alias": "exp", "type": "switch" }
+    ]
+  },
+  {
+    "id": "project",
+    "label": "Project — open solution in Visual Studio (-p)",
+    "snippet": "project.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "project", "alias": "p", "type": "switch" }
+    ],
+    "prompts": [
+      { "var": "sln", "prompt": "Solution name (e.g. MyProject.sln)", "perProject": true }
+    ]
+  },
+  {
+    "id": "code",
+    "label": "Code — open project in VS Code (-code)",
+    "snippet": "code.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "code", "alias": null, "type": "switch" }
+    ]
+  },
+  {
+    "id": "claude",
+    "label": "Claude — open Claude Code (-claude)",
+    "snippet": "claude.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "claude", "alias": null, "type": "switch" }
+    ]
+  },
+  {
+    "id": "compile",
+    "label": "Compile — dotnet build (-release / -debug)",
+    "snippet": "compile.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "release", "alias": null, "type": "switch" },
+      { "name": "debug", "alias": null, "type": "switch" }
+    ],
+    "prompts": [
+      { "var": "sln", "prompt": "Solution name (e.g. MyProject.sln)", "perProject": true }
+    ]
+  },
+  {
+    "id": "tunnel",
+    "label": "Tunnel — start Cloudflared tunnel (-tunnel)",
+    "snippet": "tunnel.ps1",
+    "scope": "global",
+    "params": [
+      { "name": "tunnel", "alias": null, "type": "switch" }
+    ],
+    "prompts": [
+      { "var": "tunnelName", "prompt": "Tunnel name", "settingsKey": "tunnelName" }
+    ]
+  },
+  {
+    "id": "azurite",
+    "label": "Azurite — start azure storage emulator locally (-azurite)",
+    "snippet": "azurite.ps1",
+    "scope": "global",
+    "params": [
+      { "name": "azurite", "alias": null, "type": "switch" }
+    ]
+  }
+]
