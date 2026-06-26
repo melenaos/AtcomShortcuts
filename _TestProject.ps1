@@ -1,20 +1,16 @@
 param (
-    [Alias('a')]
-    [switch]$all = $false,
     [Alias('d')]
     [switch]$directory = $false,
     [Alias('exp')]
     [switch]$explorer = $false,
-    [Alias('p')]
-    [switch]$project = $false,
-    [switch]$code = $false,
-    [switch]$claude = $false,
     [Alias('r')]
     [switch]$run = $false,
     [switch]$docker = $false,
-    [Alias('s')]
-    [switch]$site = $false,
-    [switch]$fixenv = $false
+    [Alias('p')]
+    [switch]$project = $false,
+    [switch]$fixenv = $false,
+    [switch]$code = $false,
+    [switch]$claude = $false
     # [/params]
  )
 
@@ -25,7 +21,6 @@ $projects = [ordered]@{
     "TestProject" = "$($settings.devDirectory)\TestProject"
     # [/projects]
 }
-$TestProject_sln = "TestProject.sln"
 # ===== C O N F I G U R A T I O N ====== #
 
 # Show help if no parameters provided
@@ -34,36 +29,25 @@ if ($PSBoundParameters.Count -eq 0) {
 --- TestProject ---" -ForegroundColor Cyan
     Write-Host "Usage: .\TestProject.ps1 [-switch]"
     Write-Host "Available Switches:"
-    Write-Host "  -a,  -all" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Run all launch actions"
     Write-Host "  -d,  -directory" -ForegroundColor Cyan -NoNewline
     Write-Host "  Directory (TestProject)"
     Write-Host "  -exp,  -explorer" -ForegroundColor Cyan -NoNewline
     Write-Host "  Explorer (TestProject)"
+    Write-Host "  -r,  -run" -ForegroundColor Cyan -NoNewline
+    Write-Host "  Run — docker + site (TestProject)"
+    Write-Host "        -docker" -ForegroundColor Cyan -NoNewline
+    Write-Host "  Docker (TestProject)"
     Write-Host "  -p,  -project" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Project (TestProject)"
+    Write-Host "  Site — dotnet run (TestProject)"
+    Write-Host "        -fixenv" -ForegroundColor Cyan -NoNewline
+    Write-Host "  Fix .env (TestProject)"
     Write-Host "        -code" -ForegroundColor Cyan -NoNewline
     Write-Host "  Code (TestProject)"
     Write-Host "        -claude" -ForegroundColor Cyan -NoNewline
     Write-Host "  Claude (TestProject)"
-    Write-Host "  -r,  -run" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Run (TestProject)"
-    Write-Host "        -docker" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Docker (TestProject)"
-    Write-Host "  -s,  -site" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Site (TestProject)"
-    Write-Host "        -fixenv" -ForegroundColor Cyan -NoNewline
-    Write-Host "  Fix .env (TestProject)"
     # [/help]
     Write-Host ""
     exit
-}
-
-# Group trigger
-if($all){
-    $project = $true
-    $claude = $true
-    $docker = $true
 }
 
 # Open directory — TestProject
@@ -75,24 +59,6 @@ if ($directory) {
 # Open in Explorer — TestProject
 if ($explorer) {
     Invoke-Item "$($projects.TestProject)"
-}
-
-# Open solution — TestProject
-if($project){
-    Invoke-Item "$($projects.TestProject)\$TestProject_sln"
-}
-
-# Open VS Code — TestProject
-if($code){
-    &"code" "$($projects.TestProject)"
-}
-
-# Open Claude Code — TestProject
-if($claude){
-    pushd
-    cd "$($projects.TestProject)"
-    wt --window 0 -p "Powershell" -d . powershell -noExit "claude";
-    popd
 }
 
 # Run full project — docker + site (TestProject)
@@ -118,7 +84,7 @@ if($docker){
 }
 
 # Run Site project — dotnet run (TestProject)
-if($site){
+if($project){
     pushd
     cd "$($projects.TestProject)\Site"
     wt --window 0 -p "Powershell" -d . powershell -noExit "dotnet run";
@@ -143,5 +109,17 @@ if($fixenv){
     }
 }
 
-# [/commands]
+# Open VS Code — TestProject
+if($code){
+    &"code" "$($projects.TestProject)"
+}
 
+# Open Claude Code — TestProject
+if($claude){
+    pushd
+    cd "$($projects.TestProject)"
+    wt --window 0 -p "Powershell" -d . powershell -noExit "claude";
+    popd
+}
+
+# [/commands]

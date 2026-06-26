@@ -55,6 +55,14 @@ function Get-SwitchName {
     return "$BaseName$DirName"
 }
 
+# Builds the aligned left column of a help line: "  -a,   -all" padded so
+# descriptions line up in a single column.
+function Format-HelpSwitch {
+    param([string]$Alias, [string]$Switch, [string]$Value = "")
+    $aliasField = if ($Alias) { "-$Alias,".PadRight(6) } else { "      " }
+    return ("  $aliasField-$Switch$Value").PadRight(22)
+}
+
 function Get-ExistingProjects {
     param([string[]]$lines)
     $projects = [ordered]@{}
@@ -91,32 +99,19 @@ function Exec-NewWizard {
     $filename = $projectName
     Write-Host ""
 
-    # --- Step 2: Define directories ---
-    $directories = @()
-    $dirIndex = 0
-    do {
-        $dirName = Read-Host -Prompt "  Directory name (e.g. backend)"
-        if ([string]::IsNullOrWhiteSpace($dirName)) {
-            if ($directories.Count -eq 0) {
-                Write-Host "  At least one directory is required." -ForegroundColor DarkYellow
-                continue
-            }
-            break
-        }
-        $dirPath = Read-Host -Prompt "  Project folder or full path (BasePath: $($s.devDirectory), default: \$projectName\)"
-        if ([string]::IsNullOrWhiteSpace($dirPath)) {
-            $dirPath = if ($dirIndex -eq 0) { $projectName } else { "$projectName-$($dirName.Substring(0,1).ToUpper() + $dirName.Substring(1))" }
-        }
-        $dirPath = $dirPath.TrimStart('\')
-        $isAbsolute = [System.IO.Path]::IsPathRooted($dirPath)
-        $directories += @{
-            name = $dirName
-            path = $dirPath
-            isAbsolute = $isAbsolute
-        }
-        $dirIndex++
-        $addMore = Read-Host -Prompt "  Add another directory? (y/n)"
-    } while ($addMore -eq 'y')
+    # --- Step 2: Project folder ---
+    $dirName = ($projectName -replace '[^A-Za-z0-9]', '')
+    if ([string]::IsNullOrWhiteSpace($dirName)) { $dirName = "project" }
+    $dirPath = Read-Host -Prompt "  Project folder or full path (BasePath: $($s.devDirectory), default: \$projectName\)"
+    if ([string]::IsNullOrWhiteSpace($dirPath)) {
+        $dirPath = $projectName
+    }
+    $dirPath = $dirPath.TrimStart('\')
+    $directories = @(@{
+        name = $dirName
+        path = $dirPath
+        isAbsolute = [System.IO.Path]::IsPathRooted($dirPath)
+    })
 
     Write-Host ""
 
@@ -136,29 +131,14 @@ function Exec-NewWizard {
     Write-Host "  Features selected: $($selectedFeatures.Count)" -ForegroundColor Green
     Write-Host ""
 
-    # --- Step 4: Per-directory feature assignment ---
+    # --- Step 4: Feature-to-directory map (single directory) ---
     # Map: featureId -> array of directory names
     $featureDirMap = @{}
 
     $projectFeatures = @($selectedFeatures | Where-Object { $_.scope -eq "project" })
-    $globalFeatures = @($selectedFeatures | Where-Object { $_.scope -eq "global" })
 
-    if ($directories.Count -gt 1 -and $projectFeatures.Count -gt 0) {
-        foreach ($f in $projectFeatures) {
-            $dirItems = @()
-            foreach ($dir in $directories) {
-                $dirItems += @{ label = $dir.name; checked = $true }
-            }
-            $dirIndices = Show-ChecklistMenu -Title "Apply '$($f.label)' to which directories?" -Items $dirItems
-            $featureDirMap[$f.id] = @()
-            foreach ($idx in $dirIndices) {
-                $featureDirMap[$f.id] += $directories[$idx].name
-            }
-        }
-    } else {
-        foreach ($f in $projectFeatures) {
-            $featureDirMap[$f.id] = @($directories[0].name)
-        }
+    foreach ($f in $projectFeatures) {
+        $featureDirMap[$f.id] = @($directories[0].name)
     }
 
     # --- Step 5: Config prompts ---
@@ -179,7 +159,7 @@ function Exec-NewWizard {
                     if (-not $perProjectVars[$dName]) { $perProjectVars[$dName] = @{} }
                     $varKey = "$($dName)_$($pr.var)"
                     if ($perProjectVars[$dName].ContainsKey($pr.var)) { continue }
-                    $value = Read-Host -Prompt "  $($pr.prompt) for '$dName' (e.g. $projectName.sln)"
+                    $value = Read-Host -Prompt "  $($pr.prompt) (Enter = $projectName.sln)"
                     if ([string]::IsNullOrWhiteSpace($value)) {
                         $value = "$projectName.sln"
                     }
@@ -217,25 +197,14 @@ function Exec-NewWizard {
     # --- Step 6: Custom commands ---
     $customCommands = @()
     Write-Host ""
-    $addCustom = Read-Host -Prompt "  Add a custom command? (y/n)"
+    $addCustom = Read-Host -Prompt "  Add a custom command? (y/N)"
     while ($addCustom -eq 'y') {
         $cmdName = Read-Host -Prompt "    Switch name (e.g. deploy)"
         $cmdAlias = Read-Host -Prompt "    Alias (leave empty to skip)"
         $cmdDesc = Read-Host -Prompt "    Description (e.g. Deploy to production)"
         $cmdType = Read-Host -Prompt "    Accept a value? (leave empty for switch, or enter type: string, int)"
 
-        $cmdDirName = $null
-        if ($directories.Count -gt 1) {
-            $dirOptions = @()
-            foreach ($dir in $directories) { $dirOptions += $dir.name }
-            $dirOptions += "(none — global)"
-            $cmdDirIdx = Show-SelectionMenu -Title "Which project directory?" -Options $dirOptions
-            if ($cmdDirIdx -lt $directories.Count) {
-                $cmdDirName = $directories[$cmdDirIdx].name
-            }
-        } elseif ($directories.Count -eq 1) {
-            $cmdDirName = $directories[0].name
-        }
+        $cmdDirName = $directories[0].name
 
         if (-not [string]::IsNullOrWhiteSpace($cmdName)) {
             $customCommands += @{
@@ -246,7 +215,7 @@ function Exec-NewWizard {
                 dirName = $cmdDirName
             }
         }
-        $addCustom = Read-Host -Prompt "  Add another custom command? (y/n)"
+        $addCustom = Read-Host -Prompt "  Add another custom command? (y/N)"
     }
 
     # --- Step 7: Group trigger (optional) ---
@@ -258,7 +227,7 @@ function Exec-NewWizard {
         # Show checklist for which features the group trigger activates
         $triggerItems = @()
         foreach ($f in $selectedFeatures) {
-            $defaultTrigger = $f.id -notin @("compile", "pull")
+            $defaultTrigger = $f.id -in @("project", "claude", "docker")
             $triggerItems += @{ label = $f.label; checked = $defaultTrigger }
         }
 
@@ -412,9 +381,9 @@ function Exec-NewWizard {
 
     # Group trigger line
     if (-not [string]::IsNullOrWhiteSpace($triggerName)) {
-        $triggerAliasPart = if ($triggerAlias) { "-$triggerAlias,  " } else { "      " }
-        $script += "    Write-Host `"  $triggerAliasPart-$triggerName`" -ForegroundColor Cyan -NoNewline" + "`r`n"
-        $script += "    Write-Host `"  Run all launch actions`"" + "`r`n"
+        $left = Format-HelpSwitch -Alias $triggerAlias -Switch $triggerName
+        $script += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline" + "`r`n"
+        $script += "    Write-Host `"Run all launch actions`"" + "`r`n"
     }
 
     # Feature help lines
@@ -430,10 +399,11 @@ function Exec-NewWizard {
                     $switchName = Get-SwitchName -BaseName $p.name -DirName $dName -IsPrimary $isPrimary
                     if (-not $addedHelpParams.ContainsKey($switchName)) {
                         $addedHelpParams[$switchName] = $true
-                        $aliasPart = if ($isPrimary -and $p.alias) { "-$($p.alias),  " } else { "      " }
-                        $desc = (($f.label -split ' \u2014 ')[0]) + " ($dName)"
-                        $script += "    Write-Host `"  $aliasPart-$switchName`" -ForegroundColor Cyan -NoNewline" + "`r`n"
-                        $script += "    Write-Host `"  $desc`"" + "`r`n"
+                        $aliasVal = if ($isPrimary) { $p.alias } else { $null }
+                        $left = Format-HelpSwitch -Alias $aliasVal -Switch $switchName
+                        $desc = ($f.label -split ' \u2014 ')[0].Trim()
+                        $script += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline" + "`r`n"
+                        $script += "    Write-Host `"$desc`"" + "`r`n"
                     }
                 }
             }
@@ -441,10 +411,10 @@ function Exec-NewWizard {
             foreach ($p in $f.params) {
                 if (-not $addedHelpParams.ContainsKey($p.name)) {
                     $addedHelpParams[$p.name] = $true
-                    $aliasPart = if ($p.alias) { "-$($p.alias),  " } else { "      " }
-                    $desc = ($f.label -split ' \u2014 ')[0]
-                    $script += "    Write-Host `"  $aliasPart-$($p.name)`" -ForegroundColor Cyan -NoNewline" + "`r`n"
-                    $script += "    Write-Host `"  $desc`"" + "`r`n"
+                    $left = Format-HelpSwitch -Alias $p.alias -Switch $p.name
+                    $desc = ($f.label -split ' \u2014 ')[0].Trim()
+                    $script += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline" + "`r`n"
+                    $script += "    Write-Host `"$desc`"" + "`r`n"
                 }
             }
         }
@@ -452,11 +422,11 @@ function Exec-NewWizard {
 
     # Custom command help lines
     foreach ($cmd in $customCommands) {
-        $aliasPart = if ($cmd.alias) { "-$($cmd.alias),  " } else { "      " }
-        $desc = if ($cmd.description) { $cmd.description } else { $cmd.name }
         $valuePart = if ($cmd.type) { " <value>" } else { "" }
-        $script += "    Write-Host `"  $aliasPart-$($cmd.name)$valuePart`" -ForegroundColor Cyan -NoNewline" + "`r`n"
-        $script += "    Write-Host `"  $desc`"" + "`r`n"
+        $left = Format-HelpSwitch -Alias $cmd.alias -Switch $cmd.name -Value $valuePart
+        $desc = if ($cmd.description) { $cmd.description } else { $cmd.name }
+        $script += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline" + "`r`n"
+        $script += "    Write-Host `"$desc`"" + "`r`n"
     }
 
     $script += "    # [/help]" + "`r`n"
@@ -711,226 +681,6 @@ function Insert-Lines {
     }
 }
 
-function Exec-AddProject {
-    param([string]$FilePath)
-
-    . "$PSScriptRoot\lib\InteractiveMenu.ps1"
-
-    $lines = [System.Collections.ArrayList]@(Get-Content -Path $FilePath)
-    $markers = Find-MarkerLines -lines $lines
-    if ($markers.projects -eq -1) {
-        Write-Host ""
-        Write-Host "  This script doesn't have the # [/projects] marker." -ForegroundColor DarkYellow
-        Write-Host "  Only scripts created with the latest wizard support adding directories." -ForegroundColor DarkYellow
-        Write-Host ""
-        return
-    }
-    if ($markers.params -eq -1 -or $markers.help -eq -1 -or $markers.commands -eq -1) {
-        Write-Host ""
-        Write-Host "  This script doesn't have injection markers." -ForegroundColor DarkYellow
-        Write-Host ""
-        return
-    }
-
-    $existingProjects = Get-ExistingProjects -lines $lines
-    $existingParams = Get-ExistingParams -lines $lines
-
-    Write-Host ""
-    $dirName = Read-Host -Prompt "  Directory name (e.g. docs)"
-    if ([string]::IsNullOrWhiteSpace($dirName)) { return }
-
-    if ($existingProjects.Contains($dirName)) {
-        Write-Host "  Directory '$dirName' already exists in this script." -ForegroundColor DarkYellow
-        return
-    }
-
-    $dirPath = Read-Host -Prompt "  Project folder or full path (BasePath: $($s.devDirectory))"
-    if ([string]::IsNullOrWhiteSpace($dirPath)) { return }
-    $dirPath = $dirPath.TrimStart('\')
-    $isAbsolute = [System.IO.Path]::IsPathRooted($dirPath)
-
-    # Show feature checklist for project-scoped features
-    $features = Get-Content -Path "$PSScriptRoot\config\features.json" -Raw | ConvertFrom-Json
-    $projectFeatures = @($features | Where-Object { $_.scope -eq "project" })
-
-    $checklistItems = @()
-    foreach ($f in $projectFeatures) {
-        $checklistItems += @{ label = $f.label; checked = $false }
-    }
-
-    $selectedIndices = Show-ChecklistMenu -Title "Select features for '$dirName'" -Items $checklistItems
-    $selectedFeatures = @()
-    foreach ($idx in $selectedIndices) {
-        $selectedFeatures += $projectFeatures[$idx]
-    }
-
-    # Prompt for per-project vars
-    $perProjectVars = @{}
-    foreach ($f in $selectedFeatures) {
-        if ($f.prompts) {
-            foreach ($pr in $f.prompts) {
-                if ($pr.perProject -and -not $perProjectVars.ContainsKey($pr.var)) {
-                    $value = Read-Host -Prompt "  $($pr.prompt) for '$dirName'"
-                    $perProjectVars[$pr.var] = $value
-                }
-            }
-        }
-    }
-
-    # Check if settings line exists
-    $hasSettings = $false
-    foreach ($line in $lines) {
-        if ($line -match '\$settings\s*=.*settings\.json') {
-            $hasSettings = $true
-            break
-        }
-    }
-
-    # Build injection content
-    # 1. Project entry
-    $projectLine = if ($isAbsolute) {
-        "    `"$dirName`" = `"$dirPath`""
-    } else {
-        "    `"$dirName`" = `"`$(`$settings.devDirectory)\$dirPath`""
-    }
-
-    # 2. Param lines
-    $newParamLines = @()
-    foreach ($f in $selectedFeatures) {
-        foreach ($p in $f.params) {
-            $switchName = Get-SwitchName -BaseName $p.name -DirName $dirName -IsPrimary $false
-            if ($existingParams -contains $switchName) { continue }
-            $newParamLines += "    [switch]`$$switchName = `$false,"
-        }
-    }
-    if ($newParamLines.Count -gt 0) {
-        $newParamLines[$newParamLines.Count - 1] = $newParamLines[$newParamLines.Count - 1].TrimEnd(',')
-    }
-
-    # 3. Help lines
-    $newHelpLines = @()
-    foreach ($f in $selectedFeatures) {
-        foreach ($p in $f.params) {
-            $switchName = Get-SwitchName -BaseName $p.name -DirName $dirName -IsPrimary $false
-            $desc = (($f.label -split ' \u2014 ')[0]) + " ($dirName)"
-            $newHelpLines += "    Write-Host `"      -$switchName`" -ForegroundColor Cyan -NoNewline"
-            $newHelpLines += "    Write-Host `"  $desc`""
-        }
-    }
-
-    # 4. Config var lines
-    $configLines = @()
-    foreach ($varName in $perProjectVars.Keys) {
-        $configLines += "`$$($dirName)_$varName = `"$($perProjectVars[$varName])`""
-    }
-
-    # 5. Snippet blocks
-    $newCommandLines = @()
-    foreach ($f in $selectedFeatures) {
-        $snippetPath = "$PSScriptRoot\templates\snippets\$($f.snippet)"
-        if (-not (Test-Path $snippetPath)) { continue }
-        $dirRef = "`$(`$projects.$dirName)"
-        $vars = @{
-            dir = $dirRef
-            switch = Get-SwitchName -BaseName $f.params[0].name -DirName $dirName -IsPrimary $false
-            label = $dirName
-        }
-        if ($f.prompts) {
-            foreach ($pr in $f.prompts) {
-                if ($pr.perProject) {
-                    $vars[$pr.var] = "`$$($dirName)_$($pr.var)"
-                }
-            }
-        }
-        if ($f.id -eq "compile") {
-            $vars["switchRelease"] = Get-SwitchName -BaseName "release" -DirName $dirName -IsPrimary $false
-            $vars["switchDebug"] = Get-SwitchName -BaseName "debug" -DirName $dirName -IsPrimary $false
-        }
-        $expanded = Expand-Snippet -SnippetPath $snippetPath -Vars $vars
-        $newCommandLines += $expanded.Split("`r`n", [System.StringSplitOptions]::None)
-        $newCommandLines += ""
-    }
-
-    # --- Inject in reverse index order (bottom to top) ---
-    # Re-read markers after each injection isn't needed if we go bottom-to-top
-
-    # 5. Command snippets before # [/commands]
-    if ($newCommandLines.Count -gt 0) {
-        Insert-Lines -lines $lines -index $markers.commands -newLines $newCommandLines
-    }
-
-    # 4b. Add to group trigger if one exists
-    $groupTrigger = Find-GroupTrigger -lines $lines
-    if ($groupTrigger) {
-        $triggerLines = @()
-        foreach ($f in $selectedFeatures) {
-            if ($f.id -notin @("compile", "pull")) {
-                $switchName = Get-SwitchName -BaseName $f.params[0].name -DirName $dirName -IsPrimary $false
-                $triggerLines += "    `$$switchName = `$true"
-            }
-        }
-        if ($triggerLines.Count -gt 0) {
-            Insert-Lines -lines $lines -index $groupTrigger.end -newLines $triggerLines
-        }
-    }
-
-    # 4. Help lines before # [/help]
-    if ($newHelpLines.Count -gt 0) {
-        Insert-Lines -lines $lines -index $markers.help -newLines $newHelpLines
-    }
-
-    # 3. Config vars before "# ===== C O N F I G U R A T I O N ====== #"
-    if ($configLines.Count -gt 0) {
-        $configMarkerIdx = -1
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].Trim() -eq '# ===== C O N F I G U R A T I O N ====== #') {
-                $configMarkerIdx = $i
-                break
-            }
-        }
-        if ($configMarkerIdx -ge 0) {
-            Insert-Lines -lines $lines -index $configMarkerIdx -newLines $configLines
-        }
-    }
-
-    # 2. Project entry before # [/projects]
-    # Re-find projects marker since lines may have shifted
-    $markers = Find-MarkerLines -lines $lines
-    Insert-Lines -lines $lines -index $markers.projects -newLines @($projectLine)
-
-    # 1. Params before # [/params]
-    if ($newParamLines.Count -gt 0) {
-        $markers = Find-MarkerLines -lines $lines
-        $lastParamIdx = $markers.params - 1
-        if ($lastParamIdx -ge 0 -and $lines[$lastParamIdx] -match '\[(switch|string|int)\]') {
-            $lines[$lastParamIdx] = $lines[$lastParamIdx].TrimEnd() + ","
-        }
-        Insert-Lines -lines $lines -index $markers.params -newLines $newParamLines
-    }
-
-    # Add settings line if needed and not present
-    if (-not $isAbsolute -and -not $hasSettings) {
-        $scriptHeaderIdx = -1
-        for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i].Trim() -eq '# =============== Script =============== #') {
-                $scriptHeaderIdx = $i
-                break
-            }
-        }
-        if ($scriptHeaderIdx -ge 0) {
-            $settingsLine = '$settings = Get-Content -Path "$PSScriptRoot\settings.json" -Raw | ConvertFrom-Json'
-            $lines.Insert($scriptHeaderIdx + 1, $settingsLine)
-        }
-    }
-
-    # Write back
-    $lines | Set-Content -Path $FilePath -Encoding UTF8
-
-    Write-Host ""
-    Write-Host "  Directory '$dirName' added successfully." -ForegroundColor Green
-    Write-Host ""
-}
-
 function Exec-AddFeature {
     param([string]$FilePath)
 
@@ -955,18 +705,8 @@ function Exec-AddFeature {
     $availableFeatures = @()
     foreach ($f in $features) {
         if ($f.scope -eq "project") {
-            # A project-scoped feature is available if there's at least one directory
-            # that doesn't have it yet
-            $hasAvailableDir = $false
-            foreach ($dName in $projectNames) {
-                $isPrimary = ($dName -eq $projectNames[0])
-                $switchName = Get-SwitchName -BaseName $f.params[0].name -DirName $dName -IsPrimary $isPrimary
-                if ($existingParams -notcontains $switchName) {
-                    $hasAvailableDir = $true
-                    break
-                }
-            }
-            if ($hasAvailableDir) {
+            # A project-scoped feature is available if the directory doesn't have it yet
+            if ($existingParams -notcontains $f.params[0].name) {
                 $availableFeatures += $f
             }
         } else {
@@ -1010,34 +750,12 @@ function Exec-AddFeature {
         $selectedFeatures += $availableFeatures[$idx]
     }
 
-    # For project-scoped features: pick directories
+    # Map each project-scoped feature to the single directory
     $featureDirMap = @{}
-    $projectSelectedFeatures = @($selectedFeatures | Where-Object { $_.scope -eq "project" })
-
-    if ($projectSelectedFeatures.Count -gt 0 -and $projectNames.Count -gt 0) {
-        foreach ($f in $projectSelectedFeatures) {
-            # Filter to directories that don't already have this feature
-            $availableDirs = @()
-            foreach ($dName in $projectNames) {
-                $isPrimary = ($dName -eq $projectNames[0])
-                $switchName = Get-SwitchName -BaseName $f.params[0].name -DirName $dName -IsPrimary $isPrimary
-                if ($existingParams -notcontains $switchName) {
-                    $availableDirs += $dName
-                }
-            }
-
-            if ($availableDirs.Count -eq 1) {
-                $featureDirMap[$f.id] = $availableDirs
-            } elseif ($availableDirs.Count -gt 1) {
-                $dirItems = @()
-                foreach ($dName in $availableDirs) {
-                    $dirItems += @{ label = $dName; checked = $true }
-                }
-                $dirIndices = Show-ChecklistMenu -Title "Apply '$($f.label)' to which directories?" -Items $dirItems
-                $featureDirMap[$f.id] = @()
-                foreach ($idx in $dirIndices) {
-                    $featureDirMap[$f.id] += $availableDirs[$idx]
-                }
+    if ($projectNames.Count -gt 0) {
+        foreach ($f in $selectedFeatures) {
+            if ($f.scope -eq "project") {
+                $featureDirMap[$f.id] = @($projectNames[0])
             }
         }
     }
@@ -1068,7 +786,7 @@ function Exec-AddFeature {
                 foreach ($dName in $dirNames) {
                     $varKey = "$($dName)_$($pr.var)"
                     if ($existingVars -contains $varKey -or $promptedVars.ContainsKey($varKey)) { continue }
-                    $value = Read-Host -Prompt "  $($pr.prompt) for '$dName'"
+                    $value = Read-Host -Prompt "  $($pr.prompt) (e.g. Project.sln)"
                     if (-not [string]::IsNullOrWhiteSpace($value)) {
                         $configLinesToAdd += "`$$varKey = `"$value`""
                     }
@@ -1118,10 +836,11 @@ function Exec-AddFeature {
                 # Help
                 foreach ($p in $f.params) {
                     $switchName = Get-SwitchName -BaseName $p.name -DirName $dName -IsPrimary $isPrimary
-                    $aliasPart = if ($isPrimary -and $p.alias) { "-$($p.alias),  " } else { "      " }
-                    $desc = (($f.label -split ' \u2014 ')[0]) + " ($dName)"
-                    $newHelpLines += "    Write-Host `"  $aliasPart-$switchName`" -ForegroundColor Cyan -NoNewline"
-                    $newHelpLines += "    Write-Host `"  $desc`""
+                    $aliasVal = if ($isPrimary) { $p.alias } else { $null }
+                    $left = Format-HelpSwitch -Alias $aliasVal -Switch $switchName
+                    $desc = ($f.label -split ' \u2014 ')[0].Trim()
+                    $newHelpLines += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline"
+                    $newHelpLines += "    Write-Host `"$desc`""
                 }
 
                 # Snippet
@@ -1157,10 +876,10 @@ function Exec-AddFeature {
                 $newParamLines += "    [switch]`$$($p.name) = `$false,"
             }
             foreach ($p in $f.params) {
-                $aliasPart = if ($p.alias) { "-$($p.alias),  " } else { "      " }
-                $desc = ($f.label -split " \u2014 ")[0]
-                $newHelpLines += "    Write-Host `"  $aliasPart-$($p.name)`" -ForegroundColor Cyan -NoNewline"
-                $newHelpLines += "    Write-Host `"  $desc`""
+                $left = Format-HelpSwitch -Alias $p.alias -Switch $p.name
+                $desc = ($f.label -split " \u2014 ")[0].Trim()
+                $newHelpLines += "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline"
+                $newHelpLines += "    Write-Host `"$desc`""
             }
             $snippetPath = "$PSScriptRoot\templates\snippets\$($f.snippet)"
             if (Test-Path $snippetPath) {
@@ -1289,18 +1008,11 @@ function Exec-AddCustomCommand {
     $cmdType = Read-Host -Prompt "  Accept a value? (leave empty for switch, or enter type: string, int)"
     $cmdType = if ([string]::IsNullOrWhiteSpace($cmdType)) { $null } else { $cmdType.Trim().ToLower() }
 
-    # Directory picker
-    $dirRef = $null
-    if ($projectNames.Count -gt 1) {
-        $dirOptions = @() + $projectNames + @("(none — global)")
-        $dirIdx = Show-SelectionMenu -Title "Which project directory?" -Options $dirOptions
-        if ($dirIdx -lt $projectNames.Count) {
-            $dirRef = "`$(`$projects.$($projectNames[$dirIdx]))"
-        }
-    } elseif ($projectNames.Count -eq 1) {
-        $dirRef = "`$(`$projects.$($projectNames[0]))"
+    # Resolve the project directory
+    $dirRef = if ($projectNames.Count -ge 1) {
+        "`$(`$projects.$($projectNames[0]))"
     } else {
-        $dirRef = "`$baseDir"
+        "`$baseDir"
     }
 
     # Build param lines
@@ -1317,11 +1029,11 @@ function Exec-AddCustomCommand {
     }
 
     # Build help lines
-    $aliasPart = if (-not [string]::IsNullOrWhiteSpace($cmdAlias)) { "-$cmdAlias,  " } else { "      " }
     $valuePart = if ($cmdType) { " <value>" } else { "" }
+    $left = Format-HelpSwitch -Alias $cmdAlias -Switch $cmdName -Value $valuePart
     $newHelpLines = @(
-        "    Write-Host `"  $aliasPart-$cmdName$valuePart`" -ForegroundColor Cyan -NoNewline"
-        "    Write-Host `"  $cmdDesc`""
+        "    Write-Host `"$left`" -ForegroundColor Cyan -NoNewline"
+        "    Write-Host `"$cmdDesc`""
     )
 
     # Build command block
@@ -1385,14 +1097,13 @@ function Exec-Edit{
     $selectedIndex = Show-SelectionMenu -Title "Select a shortcut to edit" -Options $options
     $file = $list[$selectedIndex]
 
-    $actions = @("Add project directory", "Add predefined feature", "Add custom command", "Open in editor")
+    $actions = @("Add predefined feature", "Add custom command", "Open in editor")
     $actionIndex = Show-SelectionMenu -Title "What do you want to do?" -Options $actions
 
     switch ($actionIndex) {
-        0 { Exec-AddProject -FilePath $file.FullName }
-        1 { Exec-AddFeature -FilePath $file.FullName }
-        2 { Exec-AddCustomCommand -FilePath $file.FullName }
-        3 { & "$editorPath" "$($file.FullName)" }
+        0 { Exec-AddFeature -FilePath $file.FullName }
+        1 { Exec-AddCustomCommand -FilePath $file.FullName }
+        2 { & "$editorPath" "$($file.FullName)" }
     }
 }
 
