@@ -48,6 +48,42 @@
     ]
   },
   {
+    "id": "atcomrun",
+    "label": "Run — start full ATCOM project: docker + site (-run)",
+    "snippet": "run.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "run", "alias": "r", "type": "switch" }
+    ]
+  },
+  {
+    "id": "docker",
+    "label": "Docker — start docker containers via up.ps1 (-docker)",
+    "snippet": "docker.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "docker", "alias": null, "type": "switch" }
+    ]
+  },
+  {
+    "id": "site",
+    "label": "Site — dotnet run the Site project (-project)",
+    "snippet": "site.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "project", "alias": "p", "type": "switch" }
+    ]
+  },
+  {
+    "id": "fixenv",
+    "label": "Fix .env — lowercase COMPOSE_PROJECT_NAME in Docker/.env (-fixenv)",
+    "snippet": "fixenv.ps1",
+    "scope": "project",
+    "params": [
+      { "name": "fixenv", "alias": null, "type": "switch" }
+    ]
+  },
+  {
     "id": "compile",
     "label": "Compile — dotnet build (-release / -debug)",
     "snippet": "compile.ps1",

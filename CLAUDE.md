@@ -33,8 +33,16 @@ Manages the shortcut collection itself. Key capabilities:
 
 `config/features.json` defines the predefined feature registry: each feature has an `id`, display `label`, `snippet` filename, `scope` (`"project"` or `"global"`), `params` array (switch name, alias, type), and optional `prompts` array for config variable requirements.
 
-- **project-scoped** features (`directory`, `explorer`, `project`, `code`, `claude`, `compile`) are generated per-directory. Snippets use `{{placeholders}}` that get expanded per directory.
+- **project-scoped** features (`directory`, `explorer`, `project`, `code`, `claude`, `compile`, and the ATCOM features `atcomrun`/`docker`/`site`/`fixenv`) are generated per-directory. Snippets use `{{placeholders}}` that get expanded per directory.
 - **global** features (`tunnel`, `azurite`) have no directory association.
+
+#### ATCOM project features
+
+ATCOM projects have a fixed internal layout under the project root: a `Docker/` folder (with `up.ps1` and a `.env` containing `COMPOSE_PROJECT_NAME=<Name>`) and a `Site/` folder (the runnable `.csproj`). These features reference those subfolders of `{{dir}}`:
+- `docker` (`-docker`) — `cd {{dir}}\Docker` and run `.\up.ps1 -Run`. `up.ps1` runs `docker-compose up -d` (detached), so the command returns; runs inline.
+- `site` (`-project` / `-p`) — `cd {{dir}}\Site` and run `dotnet run` in a new Windows Terminal window (long-running, so it gets its own tab).
+- `atcomrun` (`-run` / `-r`) — the full project: docker up (inline) followed by the Site `dotnet run` (new window).
+- `fixenv` (`-fixenv`) — lowercases the value of `COMPOSE_PROJECT_NAME` in `{{dir}}\Docker\.env` (docker-compose requires a lowercase project name). Standalone; not invoked by `-docker`/`-run`.
 
 Prompts with `"perProject": true` (e.g., `sln` for project/compile) are prompted once per directory and stored as `$<dirName>_<var>` (e.g., `$backend_sln`).
 
@@ -64,7 +72,10 @@ Each project script created from MyShortcuts follows a consistent pattern:
 | `-directory` | `-d` | Open primary project directory |
 | `-directoryui` | | Open UI project directory |
 | `-explorer` | `-exp` | Open primary directory in Windows Explorer |
-| `-project` | `-p` | Open `.sln` in Visual Studio |
+| `-project` | `-p` | Open `.sln` in Visual Studio (generic) **or** `dotnet run` the Site project (ATCOM `site` feature) |
+| `-docker` | | Start docker containers via `Docker\up.ps1 -Run` (ATCOM) |
+| `-run` | `-r` | Run the full ATCOM project: docker + Site (ATCOM) |
+| `-fixenv` | | Lowercase `COMPOSE_PROJECT_NAME` in `Docker\.env` (ATCOM) |
 | `-all` | `-a` | Run all launch actions together |
 | `-release` | | dotnet build in Release config |
 | `-debug` | | dotnet build in Debug config |

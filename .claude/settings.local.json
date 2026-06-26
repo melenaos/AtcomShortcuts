@@ -9,7 +9,8 @@
       "Bash(1 <<'INPUT'\nC:\\\\_developing\nnotepad.exe\ntest-tunnel\nINPUT)",
       "Bash(dir:*)",
       "Bash(findstr /v MyShortcuts)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "WebSearch"
     ]
   }
 }
