@@ -33,7 +33,7 @@ Manages the shortcut collection itself. Key capabilities:
 
 `config/features.json` defines the predefined feature registry: each feature has an `id`, display `label`, `snippet` filename, `scope` (`"project"` or `"global"`), `params` array (switch name, alias, type), and optional `prompts` array for config variable requirements.
 
-- **project-scoped** features (`directory`, `explorer`, `project`, `code`, `claude`, `compile`, and the ATCOM features `atcomrun`/`docker`/`site`/`fixenv`) are generated against the script's single project directory. Snippets use `{{placeholders}}` that get expanded for that directory.
+- **project-scoped** features (`directory`, `explorer`, `project`, `code`, `claude`, `compile`, and the ATCOM features `atcomrun`/`docker`/`site`) are generated against the script's single project directory. Snippets use `{{placeholders}}` that get expanded for that directory.
 - **global** features (`tunnel`, `azurite`) have no directory association.
 
 #### ATCOM project features
@@ -42,7 +42,8 @@ ATCOM projects have a fixed internal layout under the project root: a `Docker/` 
 - `docker` (`-docker`) — `cd {{dir}}\Docker` and run `.\up.ps1 -Run`. `up.ps1` runs `docker-compose up -d` (detached), so the command returns; runs inline.
 - `site` (`-site` / `-s`) — `cd {{dir}}\Site` and run `dotnet run` in a new Windows Terminal window (long-running, so it gets its own tab).
 - `atcomrun` (`-run` / `-r`) — the full project: docker up (inline) followed by the Site `dotnet run` (new window).
-- `fixenv` (`-fixenv`) — lowercases the value of `COMPOSE_PROJECT_NAME` in `{{dir}}\Docker\.env` (docker-compose requires a lowercase project name). Standalone; not invoked by `-docker`/`-run`.
+
+Both `docker` and `atcomrun` first check `{{dir}}\Docker\.env`: if `COMPOSE_PROJECT_NAME` contains uppercase letters (which docker-compose rejects), the user is warned and prompted `(Y/n)` to lowercase it in place before the containers start.
 
 Prompts with `"perProject": true` (e.g., `sln` for project/compile) are prompted once and stored as `$<dirName>_<var>`, where `<dirName>` is derived from the project name (e.g., `$TestProject_sln`).
 
@@ -74,7 +75,6 @@ Each project script created from MyShortcuts follows a consistent pattern:
 | `-site` | `-s` | `dotnet run` the Site project (ATCOM `site` feature) |
 | `-docker` | | Start docker containers via `Docker\up.ps1 -Run` (ATCOM) |
 | `-run` | `-r` | Run the full ATCOM project: docker + Site (ATCOM) |
-| `-fixenv` | | Lowercase `COMPOSE_PROJECT_NAME` in `Docker\.env` (ATCOM) |
 | `-all` | `-a` | Run all launch actions together |
 | `-release` | | dotnet build in Release config |
 | `-debug` | | dotnet build in Debug config |

@@ -57,8 +57,9 @@ if($project){
 # Open Claude Code — Netvolution
 if($claude){
     pushd
+    clear
     cd "$($projects.Netvolution)"
-    wt --window 0 -p "Powershell" -d . powershell -noExit "claude";
+    claude
     popd
 }
 

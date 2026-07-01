@@ -75,15 +75,6 @@
     ]
   },
   {
-    "id": "fixenv",
-    "label": "Fix .env — lowercase COMPOSE_PROJECT_NAME in Docker/.env (-fixenv)",
-    "snippet": "fixenv.ps1",
-    "scope": "project",
-    "params": [
-      { "name": "fixenv", "alias": null, "type": "switch" }
-    ]
-  },
-  {
     "id": "compile",
     "label": "Compile — dotnet build (-release / -debug)",
     "snippet": "compile.ps1",
